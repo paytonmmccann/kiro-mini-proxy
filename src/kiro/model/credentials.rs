@@ -31,6 +31,10 @@ pub struct KiroCredentials {
     pub profile_arn: Option<String>,
 
     /// 过期时间 (RFC3339 格式)
+    ///
+    /// 兼容多种客户端格式：字符串（RFC3339）、数字（如 `0` 或时间戳）、null。
+    /// 非字符串会被转为字符串；后续按 RFC3339 解析失败时视为已过期，触发刷新。
+    #[serde(default, deserialize_with = "deserialize_flexible_expires_at")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<String>,
 
@@ -114,6 +118,24 @@ pub struct KiroCredentials {
 /// 判断是否为零（用于跳过序列化）
 fn is_zero(value: &u32) -> bool {
     *value == 0
+}
+
+/// 宽松反序列化 `expiresAt`：接受字符串、数字、布尔或 null，统一转为 `Option<String>`
+///
+/// 部分客户端（如某些 IDE 导出格式）会把 `expiresAt` 写成数字 `0` 或时间戳，
+/// 直接反序列化到 `Option<String>` 会报 `invalid type: integer`。此处做兼容转换：
+/// 字符串取原值，其余（数字/布尔）转为其文本形式，null 转为 None。
+fn deserialize_flexible_expires_at<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize;
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(match value {
+        serde_json::Value::Null => None,
+        serde_json::Value::String(s) => Some(s),
+        other => Some(other.to_string()),
+    })
 }
 
 fn canonicalize_auth_method_value(value: &str) -> &str {

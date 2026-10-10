@@ -148,4 +148,26 @@ mod tests {
         let cred = credentials_from_headers(&headers).unwrap();
         assert_eq!(cred.auth_method.as_deref(), Some("idc"));
     }
+
+    #[test]
+    fn test_expires_at_as_number() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            HEADER_CREDENTIALS,
+            HeaderValue::from_str(&encode(r#"{"refreshToken":"abc","authMethod":"social","expiresAt":0}"#)).unwrap(),
+        );
+        let cred = credentials_from_headers(&headers).unwrap();
+        assert_eq!(cred.expires_at.as_deref(), Some("0"));
+    }
+
+    #[test]
+    fn test_expires_at_as_string() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            HEADER_CREDENTIALS,
+            HeaderValue::from_str(&encode(r#"{"refreshToken":"abc","authMethod":"social","expiresAt":"2026-12-31T02:32:45.144Z"}"#)).unwrap(),
+        );
+        let cred = credentials_from_headers(&headers).unwrap();
+        assert_eq!(cred.expires_at.as_deref(), Some("2026-12-31T02:32:45.144Z"));
+    }
 }
