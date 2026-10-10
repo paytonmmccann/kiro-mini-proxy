@@ -10,10 +10,10 @@
 
 ## 特性
 
-- **无状态透传**：凭证随请求 header 传入，服务端不存储、不回写、不缓存
+- **凭证透传**：凭证随请求 header 传入，服务端不保存凭证本身、不做凭据池/负载均衡
 - **Anthropic API 兼容**：支持 `/v1/messages`（流式 + 非流式）
 - **三种认证**：Social / IdC（含 builder-id、iam）/ API Key
-- **按需刷新 Token**：传入未过期 `accessToken` 直接用；只有 `refreshToken` 时现场刷新（不落地）
+- **Token 缓存**：按凭证指纹（sha256(refreshToken)）缓存刷新后的 accessToken，内存 + 本地文件持久化，重启后复用，避免重复刷新
 - **每请求可覆盖**：设备指纹、代理、Region 均可通过独立 header 覆盖
 - **能力保留**：Thinking 模式、工具调用（tool use）、WebSearch、Claude Code 缓冲端点
 
@@ -76,6 +76,7 @@ IMAGE_OWNER=your-owner IMAGE_TAG=latest docker compose up -d
 | `countTokensApiUrl` / `countTokensApiKey` | string | - | 外部 count_tokens API（可选） |
 | `countTokensAuthType` | string | `x-api-key` | 外部 API 认证类型：`x-api-key` 或 `bearer` |
 | `extractThinking` | boolean | `true` | 非流式响应是否把 `<thinking>` 解析为独立内容块 |
+| `tokenCachePath` | string | - | Token 缓存持久化文件路径；默认 config.json 同目录的 `kiro_token_cache.json` |
 
 最小配置：
 
@@ -243,7 +244,7 @@ Thinking / 工具调用与标准 Anthropic API 一致，直接在请求体带 `t
 ## 注意事项
 
 1. **单端点**：当前固定使用 `ide` 端点，credentials 中的 `endpoint` 字段会被忽略。
-2. **无状态**：刷新后的 Token 不回传、不落地；若需复用，请在客户端自行缓存并在下次请求带上新的 `accessToken` + `expiresAt`。
+2. **Token 缓存持久化**：服务端按凭证指纹缓存刷新后的 accessToken，并落盘到 `kiro_token_cache.json`（默认 config.json 同目录，可用 `tokenCachePath` 配置），重启后自动加载复用。缓存文件含明文 token，已在 `.gitignore` 排除，请勿提交或泄露；Docker 部署时它位于挂载的 `/app/config/` 下，随卷持久化。
 3. **重试**：仅对上游瞬态错误（网络错误 / 408 / 429 / 5xx）做同凭证指数退避重试（最多 3 次）；400/401/402/403 等直接返回。
 4. **凭证安全**：`x-kiro-credentials` 含敏感信息，请仅在可信链路（HTTPS / 内网）中使用。
 5. **base64 换行**：务必使用单行 base64，含换行会导致解码失败。

@@ -101,6 +101,14 @@ pub struct Config {
     #[serde(default)]
     pub endpoints: HashMap<String, serde_json::Value>,
 
+    /// Token 缓存持久化文件路径（可选）
+    ///
+    /// 未配置时默认为 config.json 同目录下的 `kiro_token_cache.json`。
+    /// 缓存内容含明文 accessToken，请勿提交到版本控制。
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_cache_path: Option<String>,
+
     /// 配置文件路径（运行时元数据，不写入 JSON）
     #[serde(skip)]
     config_path: Option<PathBuf>,
@@ -170,6 +178,7 @@ impl Default for Config {
             extract_thinking: default_extract_thinking(),
             default_endpoint: default_endpoint(),
             endpoints: HashMap::new(),
+            token_cache_path: None,
             config_path: None,
         }
     }

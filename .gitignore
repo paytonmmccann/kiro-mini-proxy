@@ -1,10 +1,11 @@
 # Rust 构建产物
 /target
 
-# 本地配置（含敏感 apiKey，切勿提交）
+# 本地配置与缓存（含敏感信息，切勿提交）
 config.json
 credentials.json
 credentials*.json
+kiro_token_cache.json
 
 # 一键交叉编译的产物收集目录
 /dist
