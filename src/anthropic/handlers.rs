@@ -32,6 +32,40 @@ use super::websearch;
 
 /// 将 KiroProvider 错误映射为 HTTP 响应
 fn map_provider_error(err: Error) -> Response {
+    // 上游返回的明确状态码：如实反馈给客户端（如 401/403/400）
+    if let Some(up) = err.downcast_ref::<crate::kiro::provider::UpstreamError>() {
+        if up.body.contains("CONTENT_LENGTH_EXCEEDS_THRESHOLD") {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new(
+                    "invalid_request_error",
+                    "Context window is full. Reduce conversation history, system prompt, or tools.",
+                )),
+            )
+                .into_response();
+        }
+        if up.body.contains("Input is too long") {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new(
+                    "invalid_request_error",
+                    "Input is too long. Reduce the size of your messages.",
+                )),
+            )
+                .into_response();
+        }
+        let status = StatusCode::from_u16(up.status).unwrap_or(StatusCode::BAD_GATEWAY);
+        tracing::warn!("上游返回 {}: {}", up.status, up.body);
+        return (
+            status,
+            Json(ErrorResponse::new(
+                "api_error",
+                format!("上游返回 {}: {}", up.status, up.body),
+            )),
+        )
+            .into_response();
+    }
+
     let err_str = err.to_string();
 
     // 上下文窗口满了（对话历史累积超出模型上下文窗口限制）
