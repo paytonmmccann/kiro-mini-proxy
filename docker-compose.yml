@@ -1,0 +1,13 @@
+services:
+  kiro-mini-proxy:
+    # 使用国内镜像（可选）
+    # image: ghcr.nju.edu.cn/${IMAGE_OWNER:-your-owner}/kiro-mini-proxy:${IMAGE_TAG:-latest}
+    image: ghcr.io/${IMAGE_OWNER:-your-owner}/kiro-mini-proxy:${IMAGE_TAG:-latest}
+    container_name: kiro-mini-proxy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8991:8991"
+    volumes:
+      - ./config/:/app/config/
+    restart: unless-stopped

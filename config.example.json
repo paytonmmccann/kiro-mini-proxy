@@ -1,0 +1,10 @@
+{
+  "host": "127.0.0.1",
+  "port": 8991,
+  "apiKey": "sk-stateless-your-secret-key",
+  "region": "us-east-1",
+  "tlsBackend": "rustls",
+  "kiroVersion": "0.11.107",
+  "defaultEndpoint": "ide",
+  "extractThinking": true
+}

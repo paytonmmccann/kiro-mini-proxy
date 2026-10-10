@@ -1,0 +1,18 @@
+# Rust 构建产物
+/target
+
+# 本地配置（含敏感 apiKey，切勿提交）
+config.json
+credentials.json
+credentials*.json
+
+# 一键交叉编译的产物收集目录
+/dist
+
+# OS / 编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo

@@ -1,0 +1,63 @@
+//! Anthropic API 路由配置（无状态透传版）
+
+use axum::{
+    Router,
+    extract::DefaultBodyLimit,
+    middleware,
+    routing::{get, post},
+};
+
+use crate::kiro::provider::StatelessProvider;
+
+use super::{
+    handlers::{count_tokens, get_models, post_messages, post_messages_cc},
+    middleware::{AppState, auth_middleware, cors_layer},
+};
+
+/// 请求体最大大小限制 (50MB)
+const MAX_BODY_SIZE: usize = 50 * 1024 * 1024;
+
+/// 创建 Anthropic API 路由
+///
+/// # 端点
+/// - `GET /v1/models` - 获取可用模型列表
+/// - `POST /v1/messages` - 创建消息（对话）
+/// - `POST /v1/messages/count_tokens` - 计算 token 数量
+/// - `POST /cc/v1/messages` - 创建消息（缓冲模式，确保 input_tokens 准确）
+///
+/// # 认证
+/// 所有路由需服务自身 API Key 认证（`x-api-key` 或 `Authorization: Bearer`）。
+/// 上游 Kiro 凭证由每个请求的 `x-kiro-credentials` 等 header 提供。
+pub fn create_router(
+    api_key: impl Into<String>,
+    provider: StatelessProvider,
+    extract_thinking: bool,
+) -> Router {
+    let state = AppState::new(api_key, provider, extract_thinking);
+
+    // 需要认证的 /v1 路由
+    let v1_routes = Router::new()
+        .route("/models", get(get_models))
+        .route("/messages", post(post_messages))
+        .route("/messages/count_tokens", post(count_tokens))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
+
+    // 需要认证的 /cc/v1 路由（Claude Code 兼容端点，缓冲模式）
+    let cc_v1_routes = Router::new()
+        .route("/messages", post(post_messages_cc))
+        .route("/messages/count_tokens", post(count_tokens))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
+
+    Router::new()
+        .nest("/v1", v1_routes)
+        .nest("/cc/v1", cc_v1_routes)
+        .layer(cors_layer())
+        .layer(DefaultBodyLimit::max(MAX_BODY_SIZE))
+        .with_state(state)
+}

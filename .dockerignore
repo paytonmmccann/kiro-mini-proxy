@@ -1,0 +1,33 @@
+# Rust build artifacts
+target/
+
+# Version control
+.git/
+.gitignore
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# CI/CD
+.github/
+
+# Documentation and examples
+*.md
+README.md
+config.example.json
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Local configuration (keep templates only)
+config.json
+
+# Docker files
+Dockerfile
+.dockerignore
+docker-compose*.yml
