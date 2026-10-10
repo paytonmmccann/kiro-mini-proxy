@@ -104,6 +104,30 @@ pub async fn resolve_access_token(
         .ok_or_else(|| anyhow::anyhow!("刷新后仍未获得 accessToken"))
 }
 
+/// 强制刷新 access token（忽略 accessToken/expiresAt，直接用 refreshToken 重新换取）
+///
+/// 用于上游返回 401/403 "bearer token invalid" 时的兜底：
+/// 即便本地判断 token 未过期或刚刷新过，上游仍可能已使其失效，此时强制重刷一次。
+pub async fn force_refresh_access_token(
+    credentials: &KiroCredentials,
+    config: &Config,
+    proxy: Option<&ProxyConfig>,
+) -> anyhow::Result<String> {
+    if credentials.is_api_key_credential() {
+        return credentials
+            .kiro_api_key
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("API Key 凭据缺少 kiroApiKey"));
+    }
+    if credentials.refresh_token.is_none() {
+        bail!("无 refreshToken，无法强制刷新 Token");
+    }
+    let refreshed = refresh_token(credentials, config, proxy).await?;
+    refreshed
+        .access_token
+        .ok_or_else(|| anyhow::anyhow!("刷新后仍未获得 accessToken"))
+}
+
 /// 刷新 Token
 async fn refresh_token(
     credentials: &KiroCredentials,

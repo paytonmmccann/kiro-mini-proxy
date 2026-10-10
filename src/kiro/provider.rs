@@ -18,7 +18,7 @@ use crate::http_client::{ProxyConfig, build_client};
 use crate::kiro::endpoint::{IdeEndpoint, KiroEndpoint, RequestContext};
 use crate::kiro::machine_id;
 use crate::kiro::model::credentials::KiroCredentials;
-use crate::kiro::refresher::resolve_access_token;
+use crate::kiro::refresher::{force_refresh_access_token, resolve_access_token};
 use crate::model::config::{Config, TlsBackend};
 
 /// 单凭证下瞬态错误的最大尝试次数
@@ -150,10 +150,11 @@ impl StatelessProvider {
         // Token 仅解析一次（未过期 accessToken 直接用，否则现场刷新）
         // 刷新失败多为凭据问题，直接返回，不重试
         let proxy = self.proxy_for(credentials);
-        let token = resolve_access_token(credentials, &self.config, proxy.as_ref()).await?;
+        let mut token = resolve_access_token(credentials, &self.config, proxy.as_ref()).await?;
         let machine_id = machine_id::generate_from_credentials(credentials, &self.config);
 
         let mut last_error: Option<anyhow::Error> = None;
+        let mut force_refreshed = false;
 
         for attempt in 0..MAX_TRANSIENT_RETRIES {
             let rctx = RequestContext {
@@ -198,6 +199,25 @@ impl StatelessProvider {
             }
 
             let body_text = response.text().await.unwrap_or_default();
+
+            // 401/403 且上游明确提示 bearer token 失效：强制刷新一次并重试
+            // （对齐主项目行为：本地 token 可能已被上游失效，需强刷兜底）
+            if matches!(status.as_u16(), 401 | 403)
+                && self.endpoint.is_bearer_token_invalid(&body_text)
+                && !force_refreshed
+            {
+                force_refreshed = true;
+                tracing::warn!("上游返回 bearer token 失效，强制刷新 Token 后重试");
+                match force_refresh_access_token(credentials, &self.config, proxy.as_ref()).await {
+                    Ok(new_token) => {
+                        token = new_token;
+                        continue;
+                    }
+                    Err(e) => {
+                        tracing::warn!("强制刷新 Token 失败: {}", e);
+                    }
+                }
+            }
 
             // 408/429/5xx：上游瞬态错误，同凭证重试
             if matches!(status.as_u16(), 408 | 429) || status.is_server_error() {
